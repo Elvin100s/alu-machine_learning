@@ -87,7 +87,7 @@ class Neuron:
         """
         pred = self.forward_prop(X)
         cost = self.cost(Y, pred)
-        pred = np.where(pred > 0.5, 1, 0)
+        pred = np.where(pred >= 0.5, 1, 0)
         return (pred, cost)
 
     def gradient_descent(self, X, Y, A, alpha=0.05):

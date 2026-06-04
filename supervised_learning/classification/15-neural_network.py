@@ -123,7 +123,7 @@ class NeuralNetwork:
         self.__W1 -= alpha * dw1.T
         self.__b1 -= alpha * db1
 
-    def train(self, X, Y, iterations=1000, alpha=0.05,
+    def train(self, X, Y, iterations=5000, alpha=0.05,
               verbose=True, graph=True, step=100):
         """ Trains the neural network
 
@@ -143,29 +143,30 @@ class NeuralNetwork:
 
         if not isinstance(alpha, float):
             raise TypeError('alpha must be a float')
-        if alpha < 0:
+        if alpha <= 0:
             raise ValueError('alpha must be positive')
 
-        if graph or verbose:
+        if verbose or graph:
             if not isinstance(step, int):
                 raise TypeError('step must be an integer')
             if step < 1 or step > iterations:
                 raise ValueError('step must be positive and <= iterations')
 
         costs = []
-        steps = []
+        steps_list = []
         for i in range(iterations + 1):
             self.forward_prop(X)
-            cost = self.cost(Y, self.__A2)
-            if i % step == 0:
+            if (verbose or graph) and (i % step == 0 or i == iterations):
+                cost = self.cost(Y, self.__A2)
                 if verbose:
                     print('Cost after {} iterations: {}'.format(i, cost))
                 if graph:
                     costs.append(cost)
-                    steps.append(i)
-            self.gradient_descent(X, Y, self.__A1, self.__A2, alpha)
+                    steps_list.append(i)
+            if i < iterations:
+                self.gradient_descent(X, Y, self.__A1, self.__A2, alpha)
         if graph:
-            plt.plot(steps, costs, 'b')
+            plt.plot(steps_list, costs, 'b-')
             plt.xlabel('iteration')
             plt.ylabel('cost')
             plt.title('Training Cost')

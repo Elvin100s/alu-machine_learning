@@ -88,7 +88,7 @@ class Neuron:
         """
         pred = self.forward_prop(X)
         cost = self.cost(Y, pred)
-        pred = np.where(pred > 0.5, 1, 0)
+        pred = np.where(pred >= 0.5, 1, 0)
         return (pred, cost)
 
     def gradient_descent(self, X, Y, A, alpha=0.05):
@@ -109,7 +109,7 @@ class Neuron:
 
     def train(self, X, Y, iterations=5000, alpha=0.05,
               verbose=True, graph=True, step=100):
-        """Train the neuron: finding the global minuminus of the cost function
+        """Train the neuron
 
         Args:
             X (_type_): _description_
@@ -119,39 +119,36 @@ class Neuron:
             verbose (bool, optional): _description_. Defaults to True.
             graph (bool, optional): _description_. Defaults to True.
             step (int, optional): _description_. Defaults to 100.
-
-        Raises:
-            TypeError: _description_
-            ValueError: _description_
-            TypeError: _description_
-            ValueError: _description_
-
-        Returns:
-            _type_: _description_
         """
         if not isinstance(iterations, int):
             raise TypeError('iterations must be an integer')
-        if iterations < 0:
-            raise ValueError('iterations must be positive')
+        if iterations <= 0:
+            raise ValueError('iterations must be a positive integer')
         if not isinstance(alpha, float):
             raise TypeError('alpha must be a float')
-        if alpha < 0:
+        if alpha <= 0:
             raise ValueError('alpha must be positive')
+        if verbose or graph:
+            if not isinstance(step, int):
+                raise TypeError('step must be an integer')
+            if step <= 0 or step > iterations:
+                raise ValueError('step must be positive and <= iterations')
 
         costs = []
-        for i in range(iterations):
-
+        steps_list = []
+        for i in range(iterations + 1):
             A = self.forward_prop(X)
-            self.gradient_descent(X, Y, A, alpha)
-
-            if verbose and i % step == 0:
+            if (verbose or graph) and (i % step == 0 or i == iterations):
                 cost = self.cost(Y, A)
-                print('Cost after {} iterations: {}'.format(i, cost))
-            if graph and i % step == 0:
-                cost = self.cost(Y, A)
-                costs.append(cost)
-        if graph and costs:
-            plt.plot(np.arange(0, iterations, step), costs)
+                if verbose:
+                    print('Cost after {} iterations: {}'.format(i, cost))
+                if graph:
+                    costs.append(cost)
+                    steps_list.append(i)
+            if i < iterations:
+                self.gradient_descent(X, Y, A, alpha)
+        if graph:
+            plt.plot(steps_list, costs, 'b-')
             plt.xlabel('iteration')
             plt.ylabel('cost')
             plt.title('Training Cost')
