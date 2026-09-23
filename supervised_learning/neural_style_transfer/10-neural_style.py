@@ -4,25 +4,6 @@ import numpy as np
 import tensorflow as tf
 
 
-def _enable_eager():
-    """Sets TensorFlow to execute eagerly, if it is not already doing so"""
-    if tf.executing_eagerly():
-        return
-    enable = getattr(tf, 'enable_eager_execution', None)
-    if enable is None:
-        enable = getattr(getattr(tf, 'compat', None), 'v1', None)
-        enable = getattr(enable, 'enable_eager_execution', None)
-    if enable is None:
-        return
-    try:
-        enable()
-    except (AttributeError, ValueError, RuntimeError):
-        pass
-
-
-_enable_eager()
-
-
 class NST:
     """Performs tasks for neural style transfer
 
@@ -44,31 +25,26 @@ class NST:
             beta: the weight for style cost
             var: the weight for the variational cost
         """
-        if type(style_image) is not np.ndarray or \
-                len(style_image.shape) != 3:
+        if not isinstance(style_image, np.ndarray) or \
+                style_image.ndim != 3 or style_image.shape[2] != 3:
             raise TypeError(
                 'style_image must be a numpy.ndarray with shape (h, w, 3)')
-        style_h, style_w, style_c = style_image.shape
-        if style_h <= 0 or style_w <= 0 or style_c != 3:
-            raise TypeError(
-                'style_image must be a numpy.ndarray with shape (h, w, 3)')
-        if type(content_image) is not np.ndarray or \
-                len(content_image.shape) != 3:
+        if not isinstance(content_image, np.ndarray) or \
+                content_image.ndim != 3 or content_image.shape[2] != 3:
             raise TypeError(
                 'content_image must be a numpy.ndarray with shape (h, w, 3)')
-        content_h, content_w, content_c = content_image.shape
-        if content_h <= 0 or content_w <= 0 or content_c != 3:
-            raise TypeError(
-                'content_image must be a numpy.ndarray with shape (h, w, 3)')
-        if (type(alpha) is not float and type(alpha) is not int) or alpha < 0:
+        if not isinstance(alpha, (int, float)) or alpha < 0:
             raise TypeError('alpha must be a non-negative number')
-        if (type(beta) is not float and type(beta) is not int) or beta < 0:
+        if not isinstance(beta, (int, float)) or beta < 0:
             raise TypeError('beta must be a non-negative number')
-        if (type(var) is not float and type(var) is not int) \
-                or var < 0:
+        if not isinstance(var, (int, float)) or var < 0:
             raise TypeError('var must be a non-negative number')
 
-        _enable_eager()
+        if not tf.executing_eagerly():
+            enable = getattr(tf, 'enable_eager_execution', None)
+            if enable is None:
+                enable = tf.compat.v1.enable_eager_execution
+            enable()
 
         self.style_image = self.scale_image(style_image)
         self.content_image = self.scale_image(content_image)
@@ -89,14 +65,12 @@ class NST:
         Returns:
             the scaled image as a tf.Tensor of shape (1, h_new, w_new, 3)
         """
-        if type(image) is not np.ndarray or len(image.shape) != 3:
-            raise TypeError(
-                'image must be a numpy.ndarray with shape (h, w, 3)')
-        h, w, c = image.shape
-        if h <= 0 or w <= 0 or c != 3:
+        if not isinstance(image, np.ndarray) or image.ndim != 3 or \
+                image.shape[2] != 3:
             raise TypeError(
                 'image must be a numpy.ndarray with shape (h, w, 3)')
 
+        h, w = image.shape[0], image.shape[1]
         if h > w:
             h_new = 512
             w_new = int(w * 512 / h)
@@ -122,18 +96,12 @@ class NST:
         """
         base = tf.keras.applications.VGG19(include_top=False,
                                            weights='imagenet')
-        custom_objects = {'MaxPooling2D': tf.keras.layers.AveragePooling2D}
-        try:
-            base.save('vgg_base_model')
-            vgg = tf.keras.models.load_model('vgg_base_model',
-                                             custom_objects=custom_objects)
-        except Exception:
-            config = base.get_config()
-            for layer in config['layers']:
-                if layer['class_name'] == 'MaxPooling2D':
-                    layer['class_name'] = 'AveragePooling2D'
-            vgg = tf.keras.models.Model.from_config(config)
-            vgg.set_weights(base.get_weights())
+        config = base.get_config()
+        for layer in config['layers']:
+            if layer['class_name'] == 'MaxPooling2D':
+                layer['class_name'] = 'AveragePooling2D'
+        vgg = tf.keras.models.Model.from_config(config)
+        vgg.set_weights(base.get_weights())
         for layer in vgg.layers:
             layer.trainable = False
 
