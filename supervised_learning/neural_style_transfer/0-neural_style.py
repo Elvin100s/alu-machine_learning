@@ -4,6 +4,25 @@ import numpy as np
 import tensorflow as tf
 
 
+def _enable_eager():
+    """Sets TensorFlow to execute eagerly, if it is not already doing so"""
+    if tf.executing_eagerly():
+        return
+    enable = getattr(tf, 'enable_eager_execution', None)
+    if enable is None:
+        enable = getattr(getattr(tf, 'compat', None), 'v1', None)
+        enable = getattr(enable, 'enable_eager_execution', None)
+    if enable is None:
+        return
+    try:
+        enable()
+    except (AttributeError, ValueError, RuntimeError):
+        pass
+
+
+_enable_eager()
+
+
 class NST:
     """Performs tasks for neural style transfer
 
@@ -24,24 +43,28 @@ class NST:
             alpha: the weight for content cost
             beta: the weight for style cost
         """
-        if not isinstance(style_image, np.ndarray) or \
-                style_image.ndim != 3 or style_image.shape[2] != 3:
+        if type(style_image) is not np.ndarray or \
+                len(style_image.shape) != 3:
             raise TypeError(
                 'style_image must be a numpy.ndarray with shape (h, w, 3)')
-        if not isinstance(content_image, np.ndarray) or \
-                content_image.ndim != 3 or content_image.shape[2] != 3:
+        style_h, style_w, style_c = style_image.shape
+        if style_h <= 0 or style_w <= 0 or style_c != 3:
+            raise TypeError(
+                'style_image must be a numpy.ndarray with shape (h, w, 3)')
+        if type(content_image) is not np.ndarray or \
+                len(content_image.shape) != 3:
             raise TypeError(
                 'content_image must be a numpy.ndarray with shape (h, w, 3)')
-        if not isinstance(alpha, (int, float)) or alpha < 0:
+        content_h, content_w, content_c = content_image.shape
+        if content_h <= 0 or content_w <= 0 or content_c != 3:
+            raise TypeError(
+                'content_image must be a numpy.ndarray with shape (h, w, 3)')
+        if (type(alpha) is not float and type(alpha) is not int) or alpha < 0:
             raise TypeError('alpha must be a non-negative number')
-        if not isinstance(beta, (int, float)) or beta < 0:
+        if (type(beta) is not float and type(beta) is not int) or beta < 0:
             raise TypeError('beta must be a non-negative number')
 
-        if not tf.executing_eagerly():
-            enable = getattr(tf, 'enable_eager_execution', None)
-            if enable is None:
-                enable = tf.compat.v1.enable_eager_execution
-            enable()
+        _enable_eager()
 
         self.style_image = self.scale_image(style_image)
         self.content_image = self.scale_image(content_image)
@@ -59,12 +82,14 @@ class NST:
         Returns:
             the scaled image as a tf.Tensor of shape (1, h_new, w_new, 3)
         """
-        if not isinstance(image, np.ndarray) or image.ndim != 3 or \
-                image.shape[2] != 3:
+        if type(image) is not np.ndarray or len(image.shape) != 3:
+            raise TypeError(
+                'image must be a numpy.ndarray with shape (h, w, 3)')
+        h, w, c = image.shape
+        if h <= 0 or w <= 0 or c != 3:
             raise TypeError(
                 'image must be a numpy.ndarray with shape (h, w, 3)')
 
-        h, w = image.shape[0], image.shape[1]
         if h > w:
             h_new = 512
             w_new = int(w * 512 / h)
