@@ -3,6 +3,9 @@
 import numpy as np
 import tensorflow as tf
 
+if hasattr(tf, 'enable_eager_execution'):
+    tf.enable_eager_execution()
+
 
 class NST:
     """Performs tasks for neural style transfer
@@ -36,12 +39,6 @@ class NST:
             raise TypeError('alpha must be a non-negative number')
         if not isinstance(beta, (int, float)) or beta < 0:
             raise TypeError('beta must be a non-negative number')
-
-        if not tf.executing_eagerly():
-            enable = getattr(tf, 'enable_eager_execution', None)
-            if enable is None:
-                enable = tf.compat.v1.enable_eager_execution
-            enable()
 
         self.style_image = self.scale_image(style_image)
         self.content_image = self.scale_image(content_image)
