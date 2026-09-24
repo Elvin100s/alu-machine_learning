@@ -94,14 +94,12 @@ class NST:
         """Creates the model used to calculate cost and saves it in the
         instance attribute model
         """
-        base = tf.keras.applications.VGG19(include_top=False,
-                                           weights='imagenet')
-        config = base.get_config()
-        for layer in config['layers']:
-            if layer['class_name'] == 'MaxPooling2D':
-                layer['class_name'] = 'AveragePooling2D'
-        vgg = tf.keras.models.Model.from_config(config)
-        vgg.set_weights(base.get_weights())
+        vgg = tf.keras.applications.VGG19(include_top=False,
+                                          weights='imagenet')
+        custom_objects = {'MaxPooling2D': tf.keras.layers.AveragePooling2D}
+        vgg.save('vgg_base_model.h5')
+        vgg = tf.keras.models.load_model('vgg_base_model.h5',
+                                         custom_objects=custom_objects)
         for layer in vgg.layers:
             layer.trainable = False
 
