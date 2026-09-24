@@ -89,16 +89,26 @@ class NST:
         """Creates the model used to calculate cost and saves it in the
         instance attribute model
         """
-        vgg = tf.keras.applications.VGG19(include_top=False,
-                                          weights='imagenet')
-        custom_objects = {'MaxPooling2D': tf.keras.layers.AveragePooling2D}
-        vgg.save('vgg_base_model.h5')
-        vgg = tf.keras.models.load_model('vgg_base_model.h5',
-                                         custom_objects=custom_objects)
-        for layer in vgg.layers:
-            layer.trainable = False
-
-        outputs = [vgg.get_layer(name).output for name in self.style_layers]
-        outputs.append(vgg.get_layer(self.content_layer).output)
-
-        self.model = tf.keras.models.Model(vgg.input, outputs)
+        step = 'VGG19'
+        try:
+            vgg = tf.keras.applications.VGG19(include_top=False,
+                                              weights='imagenet')
+            step = 'save'
+            custom_objects = {
+                'MaxPooling2D': tf.keras.layers.AveragePooling2D}
+            vgg.save('vgg_base_model.h5')
+            step = 'load_model'
+            vgg = tf.keras.models.load_model('vgg_base_model.h5',
+                                             custom_objects=custom_objects)
+            step = 'outputs'
+            for layer in vgg.layers:
+                layer.trainable = False
+            outputs = [vgg.get_layer(name).output
+                       for name in self.style_layers]
+            outputs.append(vgg.get_layer(self.content_layer).output)
+            step = 'Model'
+            self.model = tf.keras.models.Model(vgg.input, outputs)
+        except Exception as exc:
+            print('DIAG step={} err={} msg={}'.format(
+                step, type(exc).__name__, str(exc)[:400]))
+            raise
