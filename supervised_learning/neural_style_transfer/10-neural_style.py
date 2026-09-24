@@ -335,7 +335,8 @@ class NST:
             if step is not None and (i % step == 0 or i == iterations):
                 print("Cost at iteration {}: {}, content {}, style {}, var {}"
                       .format(i, float(J_total), float(J_content),
-                              float(J_style), float(J_var)))
+                              float(J_style), float(J_var)),
+                      flush=True)
 
             if i < iterations:
                 optimizer.apply_gradients([(grads, generated_image)])
