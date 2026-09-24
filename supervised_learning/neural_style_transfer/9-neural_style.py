@@ -292,19 +292,33 @@ class NST:
         if beta2 < 0 or beta2 > 1:
             raise ValueError('beta2 must be in the range [0, 1]')
 
-        if hasattr(tf, 'contrib'):
-            generated_image = tf.contrib.eager.Variable(self.content_image)
-            optimizer = tf.train.AdamOptimizer(lr, beta1, beta2)
-        else:
-            generated_image = tf.Variable(self.content_image)
-            optimizer = tf.optimizers.Adam(lr, beta1, beta2)
+        stage = 'variable'
+        try:
+            if hasattr(tf, 'contrib'):
+                generated_image = tf.contrib.eager.Variable(
+                    self.content_image)
+                stage = 'optimizer'
+                optimizer = tf.train.AdamOptimizer(lr, beta1, beta2)
+            else:
+                generated_image = tf.Variable(self.content_image)
+                stage = 'optimizer'
+                optimizer = tf.optimizers.Adam(lr, beta1, beta2)
+        except Exception as exc:
+            print('DIAG9 stage={} err={} msg={}'.format(
+                stage, type(exc).__name__, str(exc)[:300]))
+            raise
 
         best_cost = float('inf')
         best_image = generated_image.numpy()
 
         for i in range(iterations + 1):
-            grads, J_total, J_content, J_style = self.compute_grads(
-                generated_image)
+            try:
+                grads, J_total, J_content, J_style = self.compute_grads(
+                    generated_image)
+            except Exception as exc:
+                print('DIAG9 stage=grads err={} msg={}'.format(
+                    type(exc).__name__, str(exc)[:300]))
+                raise
 
             if float(J_total) < best_cost:
                 best_cost = float(J_total)
@@ -316,8 +330,13 @@ class NST:
                               float(J_style)))
 
             if i < iterations:
-                optimizer.apply_gradients([(grads, generated_image)])
-                clipped = tf.clip_by_value(generated_image, 0, 1)
-                generated_image.assign(clipped)
+                try:
+                    optimizer.apply_gradients([(grads, generated_image)])
+                    clipped = tf.clip_by_value(generated_image, 0, 1)
+                    generated_image.assign(clipped)
+                except Exception as exc:
+                    print('DIAG9 stage=step err={} msg={}'.format(
+                        type(exc).__name__, str(exc)[:300]))
+                    raise
 
         return best_image[0], best_cost
