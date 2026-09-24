@@ -1,0 +1,4 @@
+# Raw minute-level feed: ~90MB, regenerate with ./fetch_data.py
+btc_1min.csv
+__pycache__/
+*.keras
