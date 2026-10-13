@@ -23,7 +23,6 @@ def pdf(X, m, S):
             contains the covariance of the distribution
 
     not allowed to use any loops
-    not allowed to use the function numpy.diag or method numpy.ndarray.diagonal
 
     returns:
         P [numpy.ndarray of shape (n,)]:
