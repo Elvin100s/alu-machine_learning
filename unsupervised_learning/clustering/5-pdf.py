@@ -40,7 +40,7 @@ def pdf(X, m, S):
     det = np.linalg.det(S)
     inv = np.linalg.inv(S)
     diff = X - m
-    # Mahalanobis term for each data point
+    # Mahalanobis term of every data point
     maha = np.sum(np.matmul(diff, inv) * diff, axis=1)
     coef = 1 / np.sqrt(((2 * np.pi) ** d) * det)
     P = coef * np.exp(-maha / 2)
