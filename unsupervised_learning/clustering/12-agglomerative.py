@@ -28,4 +28,8 @@ def agglomerative(X, dist):
         clss [numpy.ndarray of shape (n,)]:
             containing the cluster indices for each data point
     """
-    return None
+    Z = scipy.cluster.hierarchy.linkage(X, method='ward')
+    scipy.cluster.hierarchy.dendrogram(Z, color_threshold=dist)
+    plt.show()
+    clss = scipy.cluster.hierarchy.fcluster(Z, t=dist, criterion='distance')
+    return clss

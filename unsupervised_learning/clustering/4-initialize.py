@@ -34,4 +34,12 @@ def initialize(X, k):
                     initialized as identity matrices
         or None, None, None on failure
     """
-    return None, None, None
+    if type(X) is not np.ndarray or len(X.shape) != 2:
+        return None, None, None
+    if type(k) is not int or k <= 0 or k > X.shape[0]:
+        return None, None, None
+    d = X.shape[1]
+    pi = np.full((k,), 1 / k)
+    m, _ = kmeans(X, k)
+    S = np.tile(np.identity(d), (k, 1, 1))
+    return pi, m, S

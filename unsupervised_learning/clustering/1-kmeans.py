@@ -54,9 +54,20 @@ def kmeans(X, k, iterations=1000):
     low = np.min(X, axis=0)
     high = np.max(X, axis=0)
     C = np.random.uniform(low, high, size=(k, d))
-    # save copy of centroids to compare against later
-    save_centroids = np.copy(C)
-    if C.all() == saved_centroids.all():
-        return C, clss
-    saved_centroids = np.copy(C)
+    for i in range(iterations):
+        # save copy of centroids to compare against later
+        prev_C = np.copy(C)
+        # assign each data point to its closest centroid
+        dist = np.linalg.norm(X[:, np.newaxis] - C, axis=2)
+        clss = np.argmin(dist, axis=1)
+        # update centroids, reinitializing any with no data points
+        for j in range(k):
+            if X[clss == j].size == 0:
+                C[j] = np.random.uniform(low, high, size=(1, d))
+            else:
+                C[j] = np.mean(X[clss == j], axis=0)
+        dist = np.linalg.norm(X[:, np.newaxis] - C, axis=2)
+        clss = np.argmin(dist, axis=1)
+        if np.all(prev_C == C):
+            return C, clss
     return C, clss

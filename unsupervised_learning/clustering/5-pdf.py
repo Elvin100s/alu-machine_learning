@@ -31,4 +31,18 @@ def pdf(X, m, S):
             all values in P should have a minimum value of 1e-300
         or None on failure
     """
-    return None
+    if type(X) is not np.ndarray or len(X.shape) != 2:
+        return None
+    d = X.shape[1]
+    if type(m) is not np.ndarray or m.shape != (d,):
+        return None
+    if type(S) is not np.ndarray or S.shape != (d, d):
+        return None
+    det = np.linalg.det(S)
+    inv = np.linalg.inv(S)
+    diff = X - m
+    # Mahalanobis term for each data point
+    maha = np.sum(np.matmul(diff, inv) * diff, axis=1)
+    coef = 1 / np.sqrt(((2 * np.pi) ** d) * det)
+    P = coef * np.exp(-maha / 2)
+    return np.maximum(P, 1e-300)
