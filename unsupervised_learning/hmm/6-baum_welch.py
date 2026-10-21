@@ -1,159 +1,158 @@
 #!/usr/bin/env python3
+"""Trains a hidden Markov model with the Baum-Welch algorithm."""
 import numpy as np
 
 
 def baum_welch(Observations, Transition, Emission, Initial, iterations=1000):
-    """[summary]
+    """Run the Baum-Welch expectation-maximization algorithm.
 
     Args:
-        Observations ([type]): [description]
-        Transition ([type]): [description]
-        Emission ([type]): [description]
-        Initial ([type]): [description]
-        iterations (int, optional): [description]. Defaults to 1000.
+        Observations (numpy.ndarray): observation indices of shape (T,).
+        Transition (numpy.ndarray): initialized transitions of shape (M, M).
+        Emission (numpy.ndarray): initialized emissions of shape (M, N).
+        Initial (numpy.ndarray): initialized starting probabilities (M, 1).
+        iterations (int): number of expectation-maximization iterations.
 
     Returns:
-        [type]: [description]
+        (numpy.ndarray, numpy.ndarray): the converged transition and emission
+        probabilities, or (None, None) on failure.
     """
-    if not isinstance(Observations, np.ndarray) \
-            or len(Observations.shape) != 1:
+    if not isinstance(Observations, np.ndarray) or Observations.ndim != 1:
         return None, None
-    if not isinstance(Emission, np.ndarray) or len(Emission.shape) != 2:
+    if not isinstance(Emission, np.ndarray) or Emission.ndim != 2:
         return None, None
-    if not isinstance(Transition, np.ndarray) or len(Transition.shape) != 2:
+    states, symbols = Emission.shape
+    if not isinstance(Transition, np.ndarray) or \
+            Transition.shape != (states, states):
         return None, None
-    if not isinstance(Initial, np.ndarray) or len(Initial.shape) != 2:
+    if not isinstance(Initial, np.ndarray) or Initial.shape != (states, 1):
         return None, None
+    if not _valid_probabilities(Emission) or \
+            not _valid_probabilities(Transition) or \
+            not _valid_probabilities(Initial):
+        return None, None
+    if not _valid_observations(Observations, symbols):
+        return None, None
+    if not np.isclose(np.sum(Initial), 1):
+        return None, None
+    if Observations.shape[0] < 2:
+        return None, None
+    if not isinstance(iterations, (int, np.integer)) or iterations < 0:
+        return None, None
+
+    Observations = Observations.astype(int)
     T = Observations.shape[0]
-    N, M = Emission.shape
-    if Transition.shape[0] != N or Transition.shape[1] != N:
-        return None, None
-    if Initial.shape[0] != N or Initial.shape[1] != 1:
-        return None, None
-    if not np.sum(Emission, axis=1).all():
-        return None, None
-    if not np.sum(Transition, axis=1).all():
-        return None, None
-    if not np.sum(Initial) == 1:
-        return None, None
-    for n in range(iterations):
-        _, alpha = forward(Observations, Emission, Transition, Initial)
-        _, B__ = backward(Observations, Emission, Transition, Initial)
-        xi = np.zeros((N, N, T - 1))
-        for t in range(T - 1):
-            a = np.matmul(alpha[:, t].T, Transition)
-            b = Emission[:, Observations[t + 1]].T
-            c = B__[:, t + 1]
-            denominator = np.matmul(a * b, c)
-            for i in range(N):
-                a = alpha[i, t]
-                b = Transition[i]
-                c = Emission[:, Observations[t + 1]].T
-                d = B__[:, t + 1].T
-                numerator = a * b * c * d
-                xi[i, :, t] = numerator / denominator
-        x_g = np.sum(xi, axis=1)
-        num = np.sum(xi, 2)
-        den = np.sum(x_g, axis=1).reshape((-1, 1))
-        Transition = num / den
-        sum_i = np.sum(xi[:, :, T - 2], axis=0)
-        sum_i = sum_i.reshape((-1, 1))
-        x_g = np.hstack((x_g, sum_i))
-        denominator = np.sum(x_g, axis=1)
-        denominator = denominator.reshape((-1, 1))
-        for i in range(M):
-            x_g_i = x_g[:, Observations == i]
-            Emission[:, i] = np.sum(x_g_i, axis=1)
-        Emission = Emission / denominator
+    Transition = Transition.copy()
+    Emission = Emission.copy()
+    for _ in range(iterations):
+        _, alpha = _forward(Observations, Emission, Transition, Initial)
+        _, beta = _backward(Observations, Emission, Transition, Initial)
+
+        # xi[i, j, t]: probability of being in state i at t and state j at t+1
+        emitted = (Emission[:, Observations[1:]] * beta[:, 1:]).T
+        xi = (alpha[:, :-1][:, None, :] * Transition[:, :, None] *
+              emitted.T[None, :, :])
+        total = np.sum(xi, axis=(0, 1))
+        if not np.all(total > 0):
+            return None, None
+        xi = xi / total
+
+        # gamma[i, t]: probability of being in state i at time t
+        gamma = np.zeros((states, T))
+        gamma[:, :T - 1] = np.sum(xi, axis=1)
+        gamma[:, T - 1] = np.sum(xi[:, :, T - 2], axis=0)
+
+        # maximization step
+        transition_den = np.sum(gamma[:, :T - 1], axis=1)
+        transition_num = np.sum(xi, axis=2)
+        for i in range(states):
+            if transition_den[i] > 0:
+                Transition[i] = transition_num[i] / transition_den[i]
+
+        emission_den = np.sum(gamma, axis=1)
+        for k in range(symbols):
+            emission_num = np.sum(gamma[:, Observations == k], axis=1)
+            for i in range(states):
+                if emission_den[i] > 0:
+                    Emission[i, k] = emission_num[i] / emission_den[i]
     return Transition, Emission
 
 
-def backward(Observation, Emission, Transition, Initial):
-    """[summary]
+def _forward(Observation, Emission, Transition, Initial):
+    """Compute the forward path probabilities.
 
     Args:
-        Observation ([type]): [description]
-        Emission ([type]): [description]
-        Transition ([type]): [description]
-        Initial ([type]): [description]
+        Observation (numpy.ndarray): observation indices of shape (T,).
+        Emission (numpy.ndarray): emission probabilities of shape (N, M).
+        Transition (numpy.ndarray): transition probabilities of shape (N, N).
+        Initial (numpy.ndarray): starting probabilities of shape (N, 1).
 
     Returns:
-        [type]: [description]
+        (float, numpy.ndarray): likelihood and forward probabilities (N, T).
     """
-    if not isinstance(Observation, np.ndarray) or len(Observation.shape) != 1:
-        return None, None
-    if not isinstance(Emission, np.ndarray) or len(Emission.shape) != 2:
-        return None, None
-    if not isinstance(Transition, np.ndarray) or len(Transition.shape) != 2:
-        return None, None
-    if not isinstance(Initial, np.ndarray) or len(Initial.shape) != 2:
-        return None, None
     T = Observation.shape[0]
-    N, M = Emission.shape
-    if Transition.shape[0] != N or Transition.shape[1] != N:
-        return None, None
-    if Initial.shape[0] != N or Initial.shape[1] != 1:
-        return None, None
-    if not np.sum(Emission, axis=1).all():
-        return None, None
-    if not np.sum(Transition, axis=1).all():
-        return None, None
-    if not np.sum(Initial) == 1:
-        return None, None
-    B__ = np.zeros((N, T))
-    B__[:, T - 1] = np.ones(N)
-    for t in range(T - 2, -1, -1):
-        a = Transition
-        b = Emission[:, Observation[t + 1]]
-        c = B__[:, t + 1]
-        abc = a * b * c
-        prob = np.sum(abc, axis=1)
-        B__[:, t] = prob
-    P_first = Initial[:, 0] * Emission[:, Observation[0]] * B__[:, 0]
-    P = np.sum(P_first)
-    return P, B__
-
-
-def forward(Observation, Emission, Transition, Initial):
-    """[summary]
-
-    Args:
-        Observations ([type]): [description]
-        Transition ([type]): [description]
-        Emission ([type]): [description]
-        Initial ([type]): [description]
-        iterations (int, optional): [description]. Defaults to 1000.
-
-    Returns:
-        [type]: [description]
-    """
-    if not isinstance(Observation, np.ndarray) or len(Observation.shape) != 1:
-        return None, None
-    if not isinstance(Emission, np.ndarray) or len(Emission.shape) != 2:
-        return None, None
-    if not isinstance(Transition, np.ndarray) or len(Transition.shape) != 2:
-        return None, None
-    if not isinstance(Initial, np.ndarray) or len(Initial.shape) != 2:
-        return None, None
-    T = Observation.shape[0]
-    N, M = Emission.shape
-    if Transition.shape[0] != N or Transition.shape[1] != N:
-        return None, None
-    if Initial.shape[0] != N or Initial.shape[1] != 1:
-        return None, None
-    if not np.sum(Emission, axis=1).all():
-        return None, None
-    if not np.sum(Transition, axis=1).all():
-        return None, None
-    if not np.sum(Initial) == 1:
-        return None, None
-    F = np.zeros((N, T))
-    Obs_i = Observation[0]
-    prob = np.multiply(Initial[:, 0], Emission[:, Obs_i])
-    F[:, 0] = prob
-    for i in range(1, T):
-        Obs_i = Observation[i]
-        state = np.matmul(F[:, i - 1], Transition)
-        prob = np.multiply(state, Emission[:, Obs_i])
-        F[:, i] = prob
+    F = np.zeros((Emission.shape[0], T))
+    F[:, 0] = Initial[:, 0] * Emission[:, Observation[0]]
+    for t in range(1, T):
+        F[:, t] = (F[:, t - 1] @ Transition) * Emission[:, Observation[t]]
     return np.sum(F[:, T - 1]), F
+
+
+def _backward(Observation, Emission, Transition, Initial):
+    """Compute the backward path probabilities.
+
+    Args:
+        Observation (numpy.ndarray): observation indices of shape (T,).
+        Emission (numpy.ndarray): emission probabilities of shape (N, M).
+        Transition (numpy.ndarray): transition probabilities of shape (N, N).
+        Initial (numpy.ndarray): starting probabilities of shape (N, 1).
+
+    Returns:
+        (float, numpy.ndarray): likelihood and backward probabilities (N, T).
+    """
+    states, _ = Emission.shape
+    T = Observation.shape[0]
+    B = np.zeros((states, T))
+    B[:, T - 1] = 1
+    for t in range(T - 2, -1, -1):
+        B[:, t] = Transition @ (Emission[:, Observation[t + 1]] *
+                                B[:, t + 1])
+    P = np.sum(Initial[:, 0] * Emission[:, Observation[0]] * B[:, 0])
+    return P, B
+
+
+def _valid_probabilities(matrix):
+    """Check that a matrix holds finite probabilities between 0 and 1.
+
+    Args:
+        matrix (numpy.ndarray): values to check.
+
+    Returns:
+        bool: True if every value is a valid probability, False otherwise.
+    """
+    if not np.issubdtype(matrix.dtype, np.number) or \
+            np.iscomplexobj(matrix):
+        return False
+    return bool(np.all(np.isfinite(matrix)) and
+                not (matrix < 0).any() and not (matrix > 1).any())
+
+
+def _valid_observations(Observation, m):
+    """Check that observations are integer indices inside the emission range.
+
+    Args:
+        Observation (numpy.ndarray): observation indices.
+        m (int): number of possible observations.
+
+    Returns:
+        bool: True if every observation index is valid, False otherwise.
+    """
+    if Observation.shape[0] == 0:
+        return False
+    if not np.issubdtype(Observation.dtype, np.number) or \
+            np.iscomplexobj(Observation):
+        return False
+    if not np.issubdtype(Observation.dtype, np.integer):
+        if not np.all(np.equal(np.mod(Observation, 1), 0)):
+            return False
+    return bool((Observation >= 0).all() and (Observation < m).all())

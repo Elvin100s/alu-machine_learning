@@ -1,33 +1,55 @@
 #!/usr/bin/env python3
-"""[summary]
-
-Returns:
-    [type]: [description]
-"""
+"""Determines whether a Markov chain is absorbing."""
 import numpy as np
 
 
 def absorbing(P):
-    """[summary]
+    """Determine whether a Markov chain is absorbing.
+
+    A chain is absorbing when every state can reach at least one absorbing
+    state, an absorbing state being a state that only transitions to itself.
 
     Args:
-        P ([type]): [description]
+        P (numpy.ndarray): standard transition matrix of shape (n, n).
 
     Returns:
-        [type]: [description]
+        bool: True if the chain is absorbing, False otherwise.
     """
-    if not isinstance(P, np.ndarray) or len(P.shape) != 2:
-        return None
-    s1, s2 = P.shape
-    if s1 != s2:
-        return None
-    if np.sum(P, axis=1).all() != 1:
-        return None
-    if (np.diag(P) == 1).all():
-        return True
-    if not (np.diag(P) == 1).any():
+    if not isinstance(P, np.ndarray) or P.ndim != 2:
         return False
-    for i in range(s1):
-        if P[i][i] == 1:
-            return True
-    return False
+    n = P.shape[0]
+    if n == 0 or P.shape[1] != n:
+        return False
+    if not _is_numeric(P) or (P < 0).any() or (P > 1).any():
+        return False
+
+    absorbing_states = [i for i in range(n) if P[i, i] == 1]
+    if not absorbing_states:
+        return False
+
+    # every state must reach an absorbing state through positive transitions
+    reached = np.zeros(n, dtype=bool)
+    reached[absorbing_states] = True
+    changed = True
+    while changed:
+        changed = False
+        for i in range(n):
+            if reached[i]:
+                continue
+            if np.any(P[i][reached]):
+                reached[i] = True
+                changed = True
+    return bool(np.all(reached))
+
+
+def _is_numeric(matrix):
+    """Check that an array holds real numbers.
+
+    Args:
+        matrix (numpy.ndarray): array to check.
+
+    Returns:
+        bool: True if the array holds finite real numbers, False otherwise.
+    """
+    return bool(np.issubdtype(matrix.dtype, np.number) and
+                not np.iscomplexobj(matrix) and np.all(np.isfinite(matrix)))
