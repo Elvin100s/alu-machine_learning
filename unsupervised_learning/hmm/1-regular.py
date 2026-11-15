@@ -30,7 +30,14 @@ def regular(P):
     n, n_check = P.shape
     if n != n_check:
         return None
-    if not (P > 0).all():
+    # the chain is regular if some power of P has only positive entries;
+    # (n - 1)^2 + 1 is the largest power that ever needs to be checked
+    power = P
+    for _ in range((n - 1) ** 2 + 1):
+        if (power > 0).all():
+            break
+        power = np.matmul(power, P)
+    else:
         return None
     Identity = np.identity(n)
     Q = P - Identity

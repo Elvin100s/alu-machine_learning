@@ -38,7 +38,7 @@ def forward(Observation, Emission, Transition, Initial):
         or None, None on failure
     """
     # check that Observation is the correct type and dimension
-    if type(Observation) is not np.ndarray or len(Observation.shape) < 1:
+    if type(Observation) is not np.ndarray or len(Observation.shape) != 1:
         return None, None
     # save T from Observation's shape
     T = Observation.shape[0]
@@ -61,4 +61,12 @@ def forward(Observation, Emission, Transition, Initial):
     N_check1, one = Initial.shape
     if N_check1 != N or one != 1:
         return None, None
-    return None, None
+    F = np.zeros((N, T))
+    # start in each hidden state and emit the first observation
+    F[:, 0] = Initial[:, 0] * Emission[:, Observation[0]]
+    # sum over every way of reaching state j, then emit observation t
+    for t in range(1, T):
+        F[:, t] = np.sum(F[:, t - 1].reshape(-1, 1) * Transition *
+                         Emission[:, Observation[t]], axis=0)
+    P = np.sum(F[:, T - 1])
+    return P, F

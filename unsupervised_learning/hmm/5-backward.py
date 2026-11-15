@@ -38,7 +38,7 @@ def backward(Observation, Emission, Transition, Initial):
         or None, None on failure
     """
     # check that Observation is the correct type and dimension
-    if type(Observation) is not np.ndarray or len(Observation.shape) < 1:
+    if type(Observation) is not np.ndarray or len(Observation.shape) != 1:
         return None, None
     # save T from Observation's shape
     T = Observation.shape[0]
@@ -61,4 +61,12 @@ def backward(Observation, Emission, Transition, Initial):
     N_check1, one = Initial.shape
     if N_check1 != N or one != 1:
         return None, None
-    return None, None
+    B = np.zeros((N, T))
+    # nothing left to generate after the last observation
+    B[:, T - 1] = 1
+    # move to state j, emit observation t + 1, then generate the rest
+    for t in range(T - 2, -1, -1):
+        B[:, t] = np.sum(B[:, t + 1] * Transition *
+                         Emission[:, Observation[t + 1]], axis=1)
+    P = np.sum(Initial[:, 0] * Emission[:, Observation[0]] * B[:, 0])
+    return P, B

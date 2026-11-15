@@ -38,7 +38,7 @@ def viterbi(Observation, Emission, Transition, Initial):
         or None, None on failure
     """
     # check that Observation is the correct type and dimension
-    if type(Observation) is not np.ndarray or len(Observation.shape) < 1:
+    if type(Observation) is not np.ndarray or len(Observation.shape) != 1:
         return None, None
     # save T from Observation's shape
     T = Observation.shape[0]
@@ -61,4 +61,19 @@ def viterbi(Observation, Emission, Transition, Initial):
     N_check1, one = Initial.shape
     if N_check1 != N or one != 1:
         return None, None
-    return None, None
+    V = np.zeros((N, T))
+    backpointer = np.zeros((N, T), dtype=int)
+    # start in each hidden state and emit the first observation
+    V[:, 0] = Initial[:, 0] * Emission[:, Observation[0]]
+    for t in range(1, T):
+        # paths[i, j]: best path ending in i at t - 1, then moving to j
+        paths = V[:, t - 1].reshape(-1, 1) * Transition
+        backpointer[:, t] = np.argmax(paths, axis=0)
+        V[:, t] = np.max(paths, axis=0) * Emission[:, Observation[t]]
+    P = np.max(V[:, T - 1])
+    # follow the back pointers from the most likely final state
+    path = [int(np.argmax(V[:, T - 1]))]
+    for t in range(T - 1, 0, -1):
+        path.append(int(backpointer[path[-1], t]))
+    path.reverse()
+    return path, P

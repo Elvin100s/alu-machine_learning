@@ -28,4 +28,16 @@ def absorbing(P):
     n, n_check = P.shape
     if n != n_check:
         return False
-    return True
+    # absorbing states are the ones that transition to themselves with prob 1
+    reached = np.isclose(np.diag(P), 1)
+    if not reached.any():
+        return False
+    # walk backwards from the absorbing states: a state can reach an
+    # absorbing state if it has an edge into a state already known to
+    while True:
+        new_reached = reached | (P[:, reached] > 0).any(axis=1)
+        if (new_reached == reached).all():
+            break
+        reached = new_reached
+    # the chain is absorbing only if every state can reach an absorbing state
+    return bool(reached.all())
